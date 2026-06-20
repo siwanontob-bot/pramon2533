@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ระบบติดตามแผนงานและโครงการ โรงเรียนครุศาสตร์ สำหรับผู้บริหาร ดึงข้อมูลเรียลไทม์จาก Google Sheets">
+    <title>ระบบติดตามแผนงานโครงการ โรงเรียนครุศาสตร์ | Executive Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div class="dashboard-container">
+        
+        <!-- Header Section -->
+        <header class="dashboard-header">
+            <div class="header-logo-title">
+                <div class="logo-badge">
+                    <i class="fa-solid fa-graduation-cap gold-text"></i>
+                </div>
+                <div class="title-area">
+                    <h1>ระบบติดตามแผนงานโครงการ</h1>
+                    <p class="subtitle">โรงเรียนครุศาสตร์ | Executive Tracking Dashboard</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <div class="update-status">
+                    <i class="fa-solid fa-arrows-rotate" id="refresh-icon"></i>
+                    <span id="last-updated">กำลังดาวน์โหลดข้อมูล...</span>
+                </div>
+                <button class="btn btn-primary" id="btn-refresh">
+                    <i class="fa-solid fa-rotate"></i> รีเฟรชข้อมูล
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="dashboard-nav">
+            <button class="nav-tab active" data-tab="tab-dashboard" id="nav-dashboard">
+                <i class="fa-solid fa-chart-line"></i> แดชบอร์ดติดตามโครงการ
+            </button>
+            <button class="nav-tab" data-tab="tab-documents" id="nav-documents">
+                <i class="fa-solid fa-file-contract"></i> คลังเอกสารจัดซื้อจัดจ้าง
+            </button>
+        </nav>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner-container">
+                <div class="double-spinner"></div>
+                <p>กำลังเชื่อมต่อและประมวลผลข้อมูลจาก Google Sheets...</p>
+            </div>
+        </div>
+
+        <!-- Connection Error Display -->
+        <div id="error-container" class="error-container hidden">
+            <i class="fa-solid fa-circle-exclamation error-icon"></i>
+            <div class="error-details">
+                <h3>เกิดข้อผิดพลาดในการโหลดข้อมูล</h3>
+                <p>ไม่สามารถดาวน์โหลดข้อมูลแผนงานจากระบบออนไลน์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือลองใหม่อีกครั้ง</p>
+                <button class="btn btn-danger" id="btn-retry">
+                    <i class="fa-solid fa-triangle-exclamation"></i> ลองใหม่อีกครั้ง
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab 1: Dashboard Content -->
+        <main class="dashboard-main tab-content" id="tab-dashboard">
+            
+            <!-- KPI Summary Cards Grid -->
+            <section class="kpi-grid">
+                <!-- Card 1: Total Projects -->
+                <div class="kpi-card card-blue">
+                    <div class="kpi-icon-wrap">
+                        <i class="fa-solid fa-folder-open kpi-icon"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <h3>โครงการทั้งหมด</h3>
+                        <div class="kpi-value" id="kpi-total-projects">0</div>
+                        <span class="kpi-unit">โครงการ</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Allocated Budget -->
+                <div class="kpi-card card-gold">
+                    <div class="kpi-icon-wrap">
+                        <i class="fa-solid fa-wallet kpi-icon"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <h3>งบประมาณจัดสรร</h3>
+                        <div class="kpi-value text-gold" id="kpi-allocated-budget">฿0</div>
+                        <span class="kpi-unit">บาท</span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Spent Budget -->
+                <div class="kpi-card card-red">
+                    <div class="kpi-icon-wrap">
+                        <i class="fa-solid fa-coins kpi-icon"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <h3>งบประมาณใช้ไป</h3>
+                        <div class="kpi-value text-red" id="kpi-spent-budget">฿0</div>
+                        <span class="kpi-unit" id="kpi-spent-ratio">0.0% ของงบทั้งหมด</span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Remaining Budget -->
+                <div class="kpi-card card-navy">
+                    <div class="kpi-icon-wrap">
+                        <i class="fa-solid fa-scale-balanced kpi-icon"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <h3>งบประมาณคงเหลือ</h3>
+                        <div class="kpi-value text-cyan" id="kpi-remaining-budget">฿0</div>
+                        <span class="kpi-unit" id="kpi-remaining-ratio">0.0% คงเหลือ</span>
+                    </div>
+                </div>
+
+                <!-- Card 5: Avg Progress -->
+                <div class="kpi-card card-progress">
+                    <div class="kpi-icon-wrap">
+                        <i class="fa-solid fa-chart-line kpi-icon"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <h3>ความคืบหน้าเฉลี่ย</h3>
+                        <div class="kpi-value text-green" id="kpi-avg-progress">0%</div>
+                        <div class="kpi-progress-bar-container">
+                            <div class="kpi-progress-bar-fill" id="kpi-avg-progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Status Filters & Counters -->
+            <section class="status-summary-bar">
+                <div class="status-summary-title">
+                    <h4><i class="fa-solid fa-circle-nodes"></i> สรุปสถานะการดำเนินงาน</h4>
+                </div>
+                <div class="status-counters">
+                    <div class="status-pill pill-gray" onclick="filterByQuickStatus('ยังไม่ดำเนินการ')">
+                        <span class="dot"></span> ยังไม่ดำเนินการ: <strong id="count-not-started">0</strong>
+                    </div>
+                    <div class="status-pill pill-blue" onclick="filterByQuickStatus('อยู่ระหว่างดำเนินการ')">
+                        <span class="dot animate-pulse"></span> อยู่ระหว่างดำเนินการ: <strong id="count-in-progress">0</strong>
+                    </div>
+                    <div class="status-pill pill-green" onclick="filterByQuickStatus('ดำเนินการแล้ว')">
+                        <span class="dot"></span> ดำเนินการแล้ว: <strong id="count-completed">0</strong>
+                    </div>
+                    <div class="status-pill pill-all active" id="pill-all-filter" onclick="filterByQuickStatus('ทั้งหมด')">
+                        ทั้งหมด: <strong id="count-all-projects">0</strong>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-grid">
+                <!-- Chart A: Status Breakdown -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fa-solid fa-chart-pie gold-text"></i> สัดส่วนสถานะโครงการ</h3>
+                    </div>
+                    <div class="chart-body">
+                        <div class="chart-container-doughnut">
+                            <canvas id="chart-status"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart B: Budget vs Spent by Group -->
+                <div class="chart-card xl-2">
+                    <div class="chart-header">
+                        <h3><i class="fa-solid fa-chart-bar gold-text"></i> งบประมาณและงบที่ใช้ไป จำแนกตามกลุ่มงาน</h3>
+                    </div>
+                    <div class="chart-body">
+                        <div class="chart-container-bar">
+                            <canvas id="chart-budget-group"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filter Controls and Search -->
+            <section class="filter-section">
+                <div class="filter-wrapper">
+                    <!-- Search Box -->
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="search-input" placeholder="ค้นหาตามชื่อโครงการ หรือผู้รับผิดชอบ...">
+                    </div>
+                    
+                    <!-- Filters -->
+                    <div class="filter-dropdowns">
+                        <div class="dropdown-group">
+                            <label for="filter-group"><i class="fa-solid fa-users-viewfinder"></i> กลุ่มงาน</label>
+                            <select id="filter-group">
+                                <option value="all">ทั้งหมดทุกกลุ่มงาน</option>
+                            </select>
+                        </div>
+                        
+                        <div class="dropdown-group">
+                            <label for="filter-status"><i class="fa-solid fa-toggle-on"></i> สถานะ</label>
+                            <select id="filter-status">
+                                <option value="all">ทั้งหมดทุกสถานะ</option>
+                                <option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option>
+                                <option value="อยู่ระหว่างดำเนินการ">อยู่ระหว่างดำเนินการ</option>
+                                <option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option>
+                            </select>
+                        </div>
+
+                        <button class="btn btn-secondary" id="btn-clear-filters" title="ล้างการกรองทั้งหมด">
+                            <i class="fa-solid fa-filter-circle-xmark"></i> ล้างตัวกรอง
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Project Details Table -->
+            <section class="table-section">
+                <div class="table-header">
+                    <div class="table-title">
+                        <h3><i class="fa-solid fa-list-check gold-text"></i> รายการโครงการและแผนงานวิจัยและพัฒนา</h3>
+                        <span id="filtered-count" class="filtered-badge">แสดง 0 จาก 0 โครงการ</span>
+                    </div>
+                    <div class="table-legend">
+                        <span><small>*คลิกที่แถวของตารางเพื่อแสดงสรุปข้อมูลโครงการแบบละเอียด</small></span>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="dashboard-table" id="projects-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 70px" class="sortable" data-sort="id">รหัส <i class="fa-solid fa-sort-up"></i></th>
+                                <th class="sortable" data-sort="name">ชื่อโครงการ <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable" data-sort="manager">ผู้รับผิดชอบ <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable" data-sort="group">กลุ่มงาน <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable text-right" data-sort="budget">งบประมาณ <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable text-right" data-sort="spent">ใช้ไปแล้ว <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable text-right" data-sort="remaining">คงเหลือ <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable" data-sort="progress" style="width: 140px">ความคืบหน้า <i class="fa-solid fa-sort"></i></th>
+                                <th class="sortable" data-sort="status" style="width: 150px">สถานะ <i class="fa-solid fa-sort"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="projects-table-body">
+                            <!-- Rows will be injected by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty Search Result -->
+                <div id="empty-state" class="empty-state hidden">
+                    <i class="fa-solid fa-folder-open empty-icon"></i>
+                    <p>ไม่พบแผนงานโครงการที่ตรงตามเงื่อนไขการค้นหาและตัวกรองปัจจุบัน</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 2: Procurement Documents Management -->
+        <main class="dashboard-main tab-content hidden" id="tab-documents">
+            <div class="documents-layout-grid">
+                
+                <!-- Left Column: Document Upload Card -->
+                <div class="upload-doc-card">
+                    <div class="card-header-with-border">
+                        <h3><i class="fa-solid fa-file-arrow-up gold-text"></i> อัปโหลดเอกสารจัดซื้อจัดจ้าง</h3>
+                        <p class="section-desc-small">เพิ่มเอกสารแนบตามโครงการเพื่อจัดเก็บอย่างเป็นระบบ</p>
+                    </div>
+                    
+                    <form id="upload-document-form" class="upload-form">
+                        <div class="form-group-item">
+                            <label for="doc-project-id"><i class="fa-solid fa-diagram-project"></i> เชื่อมโยงโครงการ <span class="required">*</span></label>
+                            <select id="doc-project-id" required>
+                                <option value="" disabled selected>-- เลือกโครงการ --</option>
+                                <!-- Projects populated dynamically -->
+                            </select>
+                        </div>
+                        
+                        <div class="form-group-item">
+                            <label for="doc-category"><i class="fa-solid fa-tags"></i> ประเภทเอกสารจัดซื้อ <span class="required">*</span></label>
+                            <select id="doc-category" required>
+                                <option value="" disabled selected>-- เลือกประเภท --</option>
+                                <option value="TOR/ข้อกำหนด">ร่าง TOR / ขอบเขตงาน</option>
+                                <option value="ใบเสนอราคา/PR">ใบเสนอราคา / ใบขอซื้อขอจ้าง (PR)</option>
+                                <option value="ใบสั่งซื้อสั่งจ้าง/PO">ใบสั่งซื้อสั่งจ้าง (PO) / สัญญา</option>
+                                <option value="เอกสารเบิกจ่าย/ตรวจรับ">ใบเบิกจ่าย / ใบตรวจรับงาน</option>
+                                <option value="เอกสารแนบอื่นๆ">เอกสารแนบอื่นๆ</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group-item">
+                            <label for="doc-title"><i class="fa-solid fa-file-signature"></i> ชื่อเอกสาร/บันทึกข้อความ <span class="required">*</span></label>
+                            <input type="text" id="doc-title" placeholder="เช่น ร่าง TOR ตู้น้ำดื่ม, ใบเสนอราคาคอมพิวเตอร์" required>
+                        </div>
+                        
+                        <div class="form-group-item">
+                            <label><i class="fa-solid fa-cloud-arrow-up"></i> เลือกไฟล์เอกสาร <span class="required">*</span></label>
+                            <div class="drop-zone" id="file-drop-zone">
+                                <i class="fa-solid fa-file-pdf drop-zone-icon"></i>
+                                <span class="drop-zone-prompt">ลากไฟล์มาวางที่นี่ หรือ <strong>คลิกเลือกไฟล์</strong></span>
+                                <input type="file" id="doc-file-input" class="drop-zone-file-input" required>
+                                <div class="selected-file-preview hidden" id="file-preview-area">
+                                    <span class="file-name-txt" id="preview-file-name">filename.pdf</span>
+                                    <span class="file-size-txt" id="preview-file-size">(0 KB)</span>
+                                    <button type="button" class="btn-remove-preview" id="btn-remove-preview">&times;</button>
+                                </div>
+                            </div>
+                            <span class="file-help-text">*รองรับไฟล์ PDF, Word, Excel, รูปภาพ ขนาดไม่เกิน 15MB</span>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-full-width" id="btn-upload-submit">
+                            <i class="fa-solid fa-circle-check"></i> อัปโหลดและบันทึกเอกสาร
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Right Column: Documents List Card -->
+                <div class="documents-list-card">
+                    <div class="card-header-with-border">
+                        <div class="header-title-row">
+                            <h3><i class="fa-solid fa-folder-closed gold-text"></i> คลังเก็บเอกสารโครงการ</h3>
+                            <span id="doc-total-badge" class="filtered-badge">ทั้งหมด 0 รายการ</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Search & Filter Document Panel -->
+                    <div class="doc-filter-panel">
+                        <div class="search-box sm">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="search-doc-input" placeholder="ค้นหาชื่อเอกสาร หรือชื่อไฟล์...">
+                        </div>
+                        
+                        <div class="dropdown-group sm">
+                            <select id="filter-doc-project">
+                                <option value="all">กรองทุกโครงการ</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Documents Table -->
+                    <div class="table-responsive select-scroll">
+                        <table class="dashboard-table" id="documents-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 180px">โครงการ</th>
+                                    <th style="width: 140px">ประเภทเอกสาร</th>
+                                    <th>ชื่อเอกสาร</th>
+                                    <th>ชื่อไฟล์ & ขนาด</th>
+                                    <th style="width: 110px">วันที่อัปโหลด</th>
+                                    <th style="width: 110px" class="text-right">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="documents-table-body">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Empty Documents View -->
+                    <div id="doc-empty-state" class="empty-state">
+                        <i class="fa-solid fa-file-invoice empty-icon"></i>
+                        <p>ไม่มีเอกสารจัดซื้อจัดจ้างที่อัปโหลดอยู่ในโครงการนี้</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Project Detail Modal -->
+        <div id="project-modal" class="modal-overlay hidden">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-area">
+                        <span class="modal-badge-group" id="modal-project-group">วิชาการ</span>
+                        <h2 id="modal-project-name">ชื่อโครงการอบรมเชิงปฏิบัติการสื่อการสอน</h2>
+                    </div>
+                    <button class="modal-close" id="modal-close-btn">&times;</button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="modal-grid">
+                        <!-- Project Details Left Column -->
+                        <div class="modal-info-col">
+                            <div class="info-group">
+                                <span class="info-label">รหัสโครงการ</span>
+                                <span class="info-value text-bold" id="modal-project-id">1</span>
+                            </div>
+                            <div class="info-group">
+                                <span class="info-label">ผู้รับผิดชอบหลัก</span>
+                                <span class="info-value" id="modal-project-manager">นางสาวอรนุช สมบัติ</span>
+                            </div>
+                            <div class="info-group">
+                                <span class="info-label">สถานะปัจจุบัน</span>
+                                <span class="info-value" id="modal-project-status">อยู่ระหว่างดำเนินการ</span>
+                            </div>
+                            
+                            <!-- Detailed Budget info -->
+                            <div class="modal-budget-breakdown">
+                                <div class="budget-item item-allocated">
+                                    <span class="budget-label"><i class="fa-solid fa-wallet"></i> งบจัดสรร</span>
+                                    <span class="budget-val" id="modal-project-budget">฿85,000.00</span>
+                                </div>
+                                <div class="budget-item item-spent">
+                                    <span class="budget-label"><i class="fa-solid fa-coins"></i> ใช้จ่ายสะสม</span>
+                                    <span class="budget-val" id="modal-project-spent">฿10,500.00</span>
+                                </div>
+                                <div class="budget-item item-remaining">
+                                    <span class="budget-label"><i class="fa-solid fa-scale-balanced"></i> งบประมาณคงเหลือ</span>
+                                    <span class="budget-val text-cyan" id="modal-project-remaining">฿74,500.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Project Progress & Document Management Right Column -->
+                        <div class="modal-visual-col">
+                            <div class="modal-progress-section">
+                                <div class="progress-info-title">
+                                    <span>ความคืบหน้าของงาน</span>
+                                    <span class="progress-percent-large" id="modal-project-progress-val">12.35%</span>
+                                </div>
+                                <div class="modal-progress-bar-bg">
+                                    <div class="modal-progress-bar-fill" id="modal-project-progress-bar" style="width: 12.35%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Project Documents List -->
+                            <div class="modal-documents-section">
+                                <div class="modal-section-title">
+                                    <h4><i class="fa-solid fa-paperclip gold-text"></i> เอกสารแนบจัดซื้อจัดจ้าง</h4>
+                                    <button class="btn btn-secondary btn-xs" id="modal-btn-trigger-upload" title="อัปโหลดด่วน">
+                                        <i class="fa-solid fa-plus"></i> เพิ่มไฟล์
+                                    </button>
+                                </div>
+                                
+                                <div class="modal-doc-list-wrap">
+                                    <ul class="modal-doc-list" id="modal-project-doc-list">
+                                        <!-- List of files linked with this project -->
+                                    </ul>
+                                    <div class="modal-doc-empty" id="modal-project-doc-empty">
+                                        <span>ไม่มีไฟล์จัดซื้อจัดจ้างแนบอยู่</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Hidden Quick Upload Panel inside Modal -->
+                                <div id="modal-quick-upload-panel" class="quick-upload-panel hidden">
+                                    <h5><i class="fa-solid fa-upload"></i> อัปโหลดเอกสารสำหรับโครงการนี้</h5>
+                                    <div class="quick-upload-form-inputs">
+                                        <select id="modal-upload-category" class="sm-select">
+                                            <option value="TOR/ข้อกำหนด">ร่าง TOR</option>
+                                            <option value="ใบเสนอราคา/PR">PR / ใบเสนอราคา</option>
+                                            <option value="ใบสั่งซื้อสั่งจ้าง/PO">PO / สัญญา</option>
+                                            <option value="เอกสารเบิกจ่าย/ตรวจรับ">เบิกจ่าย / ตรวจรับ</option>
+                                            <option value="เอกสารแนบอื่นๆ" selected>เอกสารอื่นๆ</option>
+                                        </select>
+                                        <input type="text" id="modal-upload-title" class="sm-input" placeholder="ระบุชื่อเรียกเอกสาร เช่น สัญญาจัดจ้าง">
+                                        <div class="sm-file-input-wrap">
+                                            <input type="file" id="modal-upload-file" class="sm-file-input">
+                                        </div>
+                                        <div class="quick-upload-buttons">
+                                            <button class="btn btn-primary btn-sm" id="modal-btn-upload-submit">ตกลง</button>
+                                            <button class="btn btn-secondary btn-sm" id="modal-btn-upload-cancel">ยกเลิก</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <div class="footer-note">
+                        <i class="fa-solid fa-info-circle"></i> ข้อมูลอ้างอิงจากฐานข้อมูลแบบเรียลไทม์ โรงเรียนครุศาสตร์
+                    </div>
+                    <button class="btn btn-secondary" id="modal-ok-btn">ปิดหน้าต่าง</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer-bar">
+            <p>© 2026 โรงเรียนครุศาสตร์ | ข้อมูลอัปเดตตรงจากระบบฐานข้อมูลแผนงานโครงการ</p>
+            <p>ออกแบบเฉพาะสำหรับคณะผู้บริหารในการติดตามการดำเนินงาน</p>
+        </footer>
+    </div>
+
+    <!-- Custom Logic Script -->
+    <script src="app.js"></script>
+</body>
+</html>
